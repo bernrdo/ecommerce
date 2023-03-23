@@ -1,37 +1,40 @@
-import db
+import threading
+import produto
 
 
-def cadastrar_produto(nome, quantidade, preco):
-    db.Produto.create(nome=nome, quantidade=quantidade, preco=preco)
-    print('Produto cadastrado com sucesso')
+class Estoque:
+    def __init__(self):
+        self.produtos = {}
+        self.lock = threading.Lock()
 
+    def adicionar_produto(self, nome, quantidade):
+        with self.lock:
+            if nome in self.produtos:
+                self.produtos[nome].quantidade += quantidade
+            else:
+                self.produtos[nome] = produto.Produto(nome, quantidade)
 
-def registrar_venda(id_produto, quantidade):
-    produto = db.Produto.get(id=id_produto)
-    if produto.quantidade >= quantidade:
-        produto.quantidade -= quantidade
-        produto.save()
-        print('Pedido realizado com sucesso')
-    else:
-        print('Não há estoque suficiente para realizar o pedido')
+    def remover_produto(self, nome, quantidade):
+        with self.lock:
+            if nome in self.produtos and self.produtos[nome].quantidade >= quantidade:
+                self.produtos[nome].quantidade -= quantidade
+                return True
+            else:
+                return False
 
+    def ajustar_estoque(self, nome, quantidade):
+        with self.lock:
+            if nome in self.produtos:
+                self.produtos[nome].quantidade = quantidade
 
-def registrar_compra(id_produto, quantidade):
-    produto = db.Produto.get(id=id_produto)
-    produto.quantidade += quantidade
-    produto.save()
-    print('Compra registrada com sucesso')
+    def consultar_estoque(self, nome):
+        with self.lock:
+            if nome in self.produtos:
+                return self.produtos[nome].quantidade
+            else:
+                return 0
 
-
-def registrar_devolucao(id_produto, quantidade):
-    produto = db.Produto.get(id=id_produto)
-    produto.quantidade += quantidade
-    produto.save()
-    print('Devolução registrada com sucesso')
-
-
-def ajustar_estoque(id_produto, quantidade):
-    produto = db.Produto.get(id=id_produto)
-    produto.quantidade = quantidade
-    produto.save()
-    print('Estoque ajustado com sucesso')
+    def alerta_estoque_baixo(self, nome):
+        with self.lock:
+            if nome in self.produtos and self.produtos[nome].quantidade <= 10:
+                print(f'ALERTA: estoque baixo para o produto {nome}!')
