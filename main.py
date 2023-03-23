@@ -1,29 +1,24 @@
-import threading
 import estoque
-import pedido
+import Database.models as initdb
+import schedule
 
-# exemplo de uso
-estoque = estoque.Estoque()
-estoque.adicionar_produto('produto1', 100)
-estoque.adicionar_produto('produto2', 50)
+if __name__ == '__main__':
+    # Criando a database
+    initdb.db.create_tables([initdb.Produto, initdb.Movimentacao])
 
-gerenciador_pedidos = pedido.GerenciadorPedidos(estoque)
+    # Criando o objeto Estoque
+    estoque = estoque.Estoque()
 
-# criação de threads para processar pedidos
-t1 = threading.Thread(target=gerenciador_pedidos.processar_pedido, args=(pedido.Pedido('produto1', 50),))
-t2 = threading.Thread(target=gerenciador_pedidos.processar_pedido, args=(pedido.Pedido('produto2', 60),))
-t3 = threading.Thread(target=gerenciador_pedidos.processar_pedido, args=(pedido.Pedido('produto1', 60),))
+    # Carregando produtos
+    estoque.carregar_produtos()
 
-t1.start()
-t2.start()
-t3.start()
+    # Cadastrando produtos
+    estoque.adicionar_produto('Caneca', 'Compra', 50)
+    estoque.adicionar_produto('Batedeira', 'Compra', 10)
+    estoque.adicionar_produto('Prato', 'Compra', 30)
+    estoque.carregar_produtos()
+    print(estoque.consultar_estoque('Prato'))
 
-# aguarda a finalização das threads
-t1.join()
-t2.join()
-t3.join()
-
-# exibe o estoque atualizado
-print('Estoque atualizado:')
-print(f'produto1: {estoque.consultar_estoque("produto1")}')
-print(f'produto2: {estoque.consultar_estoque("produto2")}')
+    # Verificando se existe produtos com estoque baixo
+    while True:
+        schedule.run_pending()

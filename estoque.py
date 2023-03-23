@@ -1,40 +1,59 @@
 import threading
-import produto
+import schedule
+from Database.models import Produto, Movimentacao
 
 
 class Estoque:
     def __init__(self):
         self.produtos = {}
-        self.lock = threading.Lock()
 
-    def adicionar_produto(self, nome, quantidade):
-        with self.lock:
-            if nome in self.produtos:
-                self.produtos[nome].quantidade += quantidade
-            else:
-                self.produtos[nome] = produto.Produto(nome, quantidade)
+    def carregar_produtos(self):
+        for produto in Produto.select():
+            self.produtos[produto.nome] = produto.quantidade
 
-    def remover_produto(self, nome, quantidade):
-        with self.lock:
-            if nome in self.produtos and self.produtos[nome].quantidade >= quantidade:
-                self.produtos[nome].quantidade -= quantidade
+    def consultar_estoque(self, nome):
+        return self.produtos.get(nome, 0)
+
+    def adicionar_produto(self, nome, tipo, quantidade):
+        produto = Produto.get_or_none(nome=nome)
+        if produto is None:
+            produto = Produto.create(nome=nome, quantidade=quantidade)
+            self.produtos[nome] = quantidade
+        else:
+            produto.quantidade += quantidade
+            produto.save()
+            self.produtos[nome] += quantidade
+
+        Movimentacao.create(produto=produto, tipo=tipo, quantidade=quantidade)
+
+    def registrar_venda(self, nome, quantidade):
+        with threading.Lock():
+            estoque_atual = self.consultar_estoque(nome)
+            if quantidade <= estoque_atual:
+                self.adicionar_produto(nome, 'Venda', -quantidade)
                 return True
             else:
                 return False
 
+    def registrar_compra(self, nome, quantidade):
+        with threading.Lock():
+            self.adicionar_produto(nome, 'Compra', quantidade)
+
+    def registrar_devolucao(self, nome, quantidade):
+        with threading.Lock():
+            self.adicionar_produto(nome, 'Devolução', quantidade)
+
     def ajustar_estoque(self, nome, quantidade):
-        with self.lock:
-            if nome in self.produtos:
-                self.produtos[nome].quantidade = quantidade
+        with threading.Lock():
+            self.adicionar_produto(nome, 'Ajuste', quantidade)
 
-    def consultar_estoque(self, nome):
-        with self.lock:
-            if nome in self.produtos:
-                return self.produtos[nome].quantidade
-            else:
-                return 0
+    def alerta_estoque_baixo(self, limite_minimo=5):
+        alertas = []
+        for nome, quantidade in self.produtos.items():
+            if quantidade < limite_minimo:
+                mensagem = f"Produto {nome} em estoque baixo: {quantidade} unidades."
+                alertas.append(mensagem)
+        return alertas
 
-    def alerta_estoque_baixo(self, nome):
-        with self.lock:
-            if nome in self.produtos and self.produtos[nome].quantidade <= 10:
-                print(f'ALERTA: estoque baixo para o produto {nome}!')
+    # solução sugerida pelo ChatGPT
+    schedule.every(1).hour.do(alerta_estoque_baixo)
